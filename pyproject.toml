@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "backend_mis_eventos"
+version = "0.1.0"
+description = "Backend MVP para Mis Eventos"
+authors = ["Yerlys Castellar <castellaryerlis18@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.111.1"
+uvicorn = {extras = ["standard"], version = "^0.23.2"}
+sqlmodel = "^0.0.8"
+psycopg = {extras = ["binary"], version = "^3.4.0"}
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+python-dotenv = "^1.0.0"
+pydantic-settings = "^2.0.0"
+email-validator = "^2.0.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^8.4.0"
+httpx = "^0.25.0"
+alembic = "^1.11.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
