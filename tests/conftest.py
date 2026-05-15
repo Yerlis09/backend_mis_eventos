@@ -43,7 +43,6 @@ def test_user(session: Session):
         full_name="Test User",
         hashed_password=get_password_hash("testpass123"),
         is_active=True,
-        is_superuser=False,
         role=UserRole.attendee,
     )
     session.add(user)
@@ -60,7 +59,6 @@ def inactive_user(session: Session):
         full_name="Inactive User",
         hashed_password=get_password_hash("testpass123"),
         is_active=False,
-        is_superuser=False,
         role=UserRole.attendee,
     )
     session.add(user)
@@ -71,13 +69,12 @@ def inactive_user(session: Session):
 
 @pytest.fixture
 def superuser(session: Session):
-    """Crea un usuario administrador (is_superuser + role=admin) para los tests de admin."""
+    """Crea un usuario administrador con role=admin para los tests de admin."""
     user = User(
         email="admin@example.com",
         full_name="Admin User",
         hashed_password=get_password_hash("adminpass123"),
         is_active=True,
-        is_superuser=True,
         role=UserRole.admin,
     )
     session.add(user)
@@ -114,7 +111,6 @@ def organizer_user(session: Session):
         full_name="Organizer User",
         hashed_password=get_password_hash("organizerpass123"),
         is_active=True,
-        is_superuser=False,
         role=UserRole.organizer,
     )
     session.add(user)

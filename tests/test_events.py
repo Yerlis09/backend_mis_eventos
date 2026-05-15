@@ -8,7 +8,11 @@ def test_list_events_empty(client: TestClient):
     """Verifica que lista de eventos está vacía al inicio."""
     response = client.get("/api/v1/events")
     assert response.status_code == 200
-    assert response.json() == []
+    data = response.json()
+    assert data["items"] == []
+    assert data["total"] == 0
+    assert data["page"] == 1
+    assert data["pages"] == 0
 
 
 def test_create_event(client: TestClient, organizer_token: str):
@@ -111,6 +115,25 @@ def test_delete_event(client: TestClient, session: Session, organizer_token: str
     assert response.status_code == 204
 
 
+def test_update_nonexistent_event(client: TestClient, organizer_token: str):
+    """Verifica 404 al actualizar un evento inexistente."""
+    response = client.put(
+        "/api/v1/events/99999",
+        json={"name": "Ghost"},
+        headers={"Authorization": f"Bearer {organizer_token}"},
+    )
+    assert response.status_code == 404
+
+
+def test_delete_nonexistent_event(client: TestClient, organizer_token: str):
+    """Verifica 404 al eliminar un evento inexistente."""
+    response = client.delete(
+        "/api/v1/events/99999",
+        headers={"Authorization": f"Bearer {organizer_token}"},
+    )
+    assert response.status_code == 404
+
+
 def test_search_events(client: TestClient, session: Session):
     """Verifica búsqueda de eventos por nombre."""
     session.add(Event(name="Python Conference", capacity=100, status="draft"))
@@ -120,20 +143,26 @@ def test_search_events(client: TestClient, session: Session):
     response = client.get("/api/v1/events?search=Python")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 1
-    assert data[0]["name"] == "Python Conference"
+    assert data["total"] == 1
+    assert len(data["items"]) == 1
+    assert data["items"][0]["name"] == "Python Conference"
 
 
 def test_pagination(client: TestClient, session: Session):
-    """Verifica paginación de eventos."""
+    """Verifica paginación de eventos con page/size."""
     for i in range(15):
         session.add(Event(name=f"Event {i}", capacity=50, status="draft"))
     session.commit()
 
-    response = client.get("/api/v1/events?skip=0&limit=10")
+    response = client.get("/api/v1/events?page=1&size=10")
     assert response.status_code == 200
-    assert len(response.json()) == 10
+    data = response.json()
+    assert len(data["items"]) == 10
+    assert data["total"] == 15
+    assert data["pages"] == 2
 
-    response = client.get("/api/v1/events?skip=10&limit=10")
+    response = client.get("/api/v1/events?page=2&size=10")
     assert response.status_code == 200
-    assert len(response.json()) == 5
+    data = response.json()
+    assert len(data["items"]) == 5
+    assert data["page"] == 2

@@ -54,17 +54,8 @@ async def get_current_active_user(
 async def get_current_superuser(
     current_user: User = Depends(get_current_active_user),
 ) -> User:
-    """Verifica que el usuario tenga privilegios de administrador.
-
-    Acepta dos mecanismos (backward-compatible):
-    - is_superuser=True  (campo heredado, sigue funcionando)
-    - role=UserRole.admin (nuevo sistema de roles)
-
-    Esto permite migrar gradualmente de is_superuser al sistema de roles
-    sin romper usuarios existentes ni los tests actuales.
-    """
-    is_admin = current_user.is_superuser or current_user.role == UserRole.admin
-    if not is_admin:
+    """Verifica que el usuario tenga role=admin en el sistema RBAC."""
+    if current_user.role != UserRole.admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",

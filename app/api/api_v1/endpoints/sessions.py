@@ -1,13 +1,15 @@
 from datetime import datetime
+from math import ceil
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from app.core.permissions import require_organizer_or_admin
 from app.db.models import Event, EventSession, User
 from app.db.session import get_session
 from app.schemas.event import EventSessionCreate, EventSessionRead, EventSessionUpdate
+from app.schemas.pagination import Page
 
 router = APIRouter()
 
@@ -60,21 +62,27 @@ def create_session(
     return new_session
 
 
-@router.get("/{event_id}/sessions", response_model=list[EventSessionRead])
+@router.get("/{event_id}/sessions", response_model=Page[EventSessionRead])
 def list_sessions(
     event_id: int,
     session: Session = Depends(get_session),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-) -> list[EventSessionRead]:
-    """Lista las sesiones de un evento con paginación opcional."""
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=100),
+) -> Page[EventSessionRead]:
+    """Lista las sesiones de un evento con paginación."""
     event = session.get(Event, event_id)
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
-    return session.exec(
-        select(EventSession).where(EventSession.event_id == event_id).offset(skip).limit(limit)
+    total = session.exec(
+        select(func.count(EventSession.id)).where(EventSession.event_id == event_id)
+    ).one()
+    offset = (page - 1) * size
+    items = session.exec(
+        select(EventSession).where(EventSession.event_id == event_id).offset(offset).limit(size)
     ).all()
+    pages = ceil(total / size) if total > 0 else 0
+    return Page(items=items, total=total, page=page, size=size, pages=pages)
 
 
 @router.put("/{event_id}/sessions/{session_id}", response_model=EventSessionRead)

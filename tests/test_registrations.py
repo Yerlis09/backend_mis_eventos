@@ -96,7 +96,9 @@ def test_list_my_registrations(client: TestClient, session: Session, auth_token:
         headers={"Authorization": f"Bearer {auth_token}"},
     )
     assert response.status_code == 200
-    assert len(response.json()) == 3
+    data = response.json()
+    assert data["total"] == 3
+    assert len(data["items"]) == 3
 
 
 def test_unregister_from_event(client: TestClient, test_event: Event, auth_token: str):
@@ -126,3 +128,12 @@ def test_register_requires_auth(client: TestClient, test_event: Event):
     """Verifica que es necesario autenticarse para registrarse."""
     response = client.post(f"/api/v1/events/{test_event.id}/register")
     assert response.status_code == 403
+
+
+def test_unregister_nonexistent_event(client: TestClient, auth_token: str):
+    """Verifica 404 al desregistrarse de un evento que no existe."""
+    response = client.delete(
+        "/api/v1/events/99999/unregister",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert response.status_code == 404

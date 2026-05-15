@@ -1,6 +1,6 @@
 # Mis Eventos — Backend MVP
 
-Backend profesional construido con **FastAPI**, **SQLModel**, **PostgreSQL**, **Alembic**, **JWT**, **Pytest** y **Docker**. Incluye sistema de roles RBAC (Admin, Organizer, Attendee) con control de acceso por rol y gestión de perfiles por administrador.
+Backend construido con **FastAPI**, **SQLModel**, **PostgreSQL**, **Alembic**, **JWT**, **Pytest** y **Docker**. Incluye sistema de roles RBAC (Admin, Organizer, Attendee) con control de acceso por rol y gestión de perfiles por administrador.
 
 ---
 
@@ -33,14 +33,15 @@ backend_mis_eventos/
 │       ├── user.py                    # UserCreate, UserRead, UserRoleUpdate, UserActiveUpdate
 │       ├── event.py                   # EventCreate/Read/Update, SessionCreate/Read/Update
 │       ├── registration.py            # RegistrationRead
+│       ├── pagination.py              # Page[T] — respuesta paginada genérica
 │       └── token.py                   # Token JWT
 ├── tests/
 │   ├── conftest.py                    # Fixtures: session, client, test_user, organizer, superuser
-│   ├── test_auth.py                   # Tests de autenticación (8)
-│   ├── test_events.py                 # Tests de eventos CRUD (11)
-│   ├── test_sessions.py               # Tests de sesiones (6)
-│   ├── test_registrations.py          # Tests de registros (8)
-│   ├── test_admin.py                  # Tests de admin (4)
+│   ├── test_auth.py                   # Tests de autenticación (11)
+│   ├── test_events.py                 # Tests de eventos CRUD (13)
+│   ├── test_sessions.py               # Tests de sesiones (14)
+│   ├── test_registrations.py          # Tests de registros (9)
+│   ├── test_admin.py                  # Tests de admin (6)
 │   └── test_rbac.py                   # Tests de permisos RBAC (12)
 ├── alembic/
 │   ├── env.py
@@ -84,7 +85,7 @@ backend_mis_eventos/
 ### Gestión de Eventos
 - CRUD completo con `creator_id` para control de ownership
 - Búsqueda por nombre (`ilike`, case-insensitive)
-- Paginación con `skip` / `limit`
+- Paginación con `page` / `size` — respuesta `Page[EventRead]`
 - Validación de status: `Literal["draft", "published", "cancelled"]`
 - Validación de capacidad: `ge=0`
 
@@ -92,25 +93,39 @@ backend_mis_eventos/
 - CRUD anidado bajo `/events/{id}/sessions`
 - Validación `start_datetime < end_datetime`
 - Detección de solapamiento de horarios dentro del mismo evento
-- Paginación en listado
+- Paginación con `page` / `size` — respuesta `Page[EventSessionRead]`
 
 ### Registro de Asistentes
 - Registro con validación de capacidad máxima
 - 409 Conflict para registro duplicado
 - `UniqueConstraint` en DB como segunda línea de defensa
-- Listado de registros propios
+- Listado paginado de registros propios — `Page[RegistrationRead]`
 - Cancelación de registro con validación de existencia
 
+### Paginación
+- Schema genérico `Page[T]` reutilizable en todos los endpoints de listado
+- Parámetros: `page` (≥1) y `size` (≥1, max 100)
+- Respuesta consistente en todos los endpoints:
+```json
+{
+  "items": [...],
+  "total": 15,
+  "page": 1,
+  "size": 10,
+  "pages": 2
+}
+```
+
 ### Administración (solo admin)
-- `GET /api/v1/admin/users` — listar usuarios con paginación
+- `GET /api/v1/admin/users` — listar usuarios paginados (`Page[UserRead]`)
 - `GET /api/v1/admin/users/{id}` — perfil individual
 - `PATCH /api/v1/admin/users/{id}/role` — cambiar rol
 - `PATCH /api/v1/admin/users/{id}/active` — activar/desactivar usuario
 
 ### Testing
-- **49/49 tests pasando** sobre SQLite en memoria (sin dependencias externas)
+- **65/65 tests pasando** — cobertura **99%** sobre SQLite en memoria (sin dependencias externas)
 - Fixtures: `test_user` (attendee), `organizer_user`, `superuser`, sus tokens y `inactive_user`
-- Cobertura: auth, eventos, sesiones, registros, admin y RBAC
+- Cobertura: auth, eventos, sesiones, registros, admin, RBAC y rutas de error (404, 401, 403)
 
 ---
 
@@ -177,36 +192,36 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 | POST | `/api/v1/auth/login` | — | Obtener token JWT |
 
 ### Eventos
-| Método | Ruta | Auth | Descripción |
-|---|---|---|---|
-| GET | `/api/v1/events` | — | Listar eventos (búsqueda + paginación) |
-| GET | `/api/v1/events/{id}` | — | Obtener evento con sus sesiones |
-| POST | `/api/v1/events` | organizer / admin | Crear evento |
-| PUT | `/api/v1/events/{id}` | organizer-dueño / admin | Actualizar evento |
-| DELETE | `/api/v1/events/{id}` | organizer-dueño / admin | Eliminar evento |
+| Método | Ruta | Auth | Query params | Descripción |
+|---|---|---|---|---|
+| GET | `/api/v1/events` | — | `page`, `size`, `search` | Listar eventos paginados |
+| GET | `/api/v1/events/{id}` | — | — | Obtener evento con sus sesiones |
+| POST | `/api/v1/events` | organizer / admin | — | Crear evento |
+| PUT | `/api/v1/events/{id}` | organizer-dueño / admin | — | Actualizar evento |
+| DELETE | `/api/v1/events/{id}` | organizer-dueño / admin | — | Eliminar evento |
 
 ### Sesiones
-| Método | Ruta | Auth | Descripción |
-|---|---|---|---|
-| GET | `/api/v1/events/{id}/sessions` | — | Listar sesiones |
-| POST | `/api/v1/events/{id}/sessions` | organizer / admin | Crear sesión |
-| PUT | `/api/v1/events/{id}/sessions/{sid}` | organizer / admin | Actualizar sesión |
-| DELETE | `/api/v1/events/{id}/sessions/{sid}` | organizer / admin | Eliminar sesión |
+| Método | Ruta | Auth | Query params | Descripción |
+|---|---|---|---|---|
+| GET | `/api/v1/events/{id}/sessions` | — | `page`, `size` | Listar sesiones paginadas |
+| POST | `/api/v1/events/{id}/sessions` | organizer / admin | — | Crear sesión |
+| PUT | `/api/v1/events/{id}/sessions/{sid}` | organizer / admin | — | Actualizar sesión |
+| DELETE | `/api/v1/events/{id}/sessions/{sid}` | organizer / admin | — | Eliminar sesión |
 
 ### Registros
-| Método | Ruta | Auth | Descripción |
-|---|---|---|---|
-| POST | `/api/v1/events/{id}/register` | activo | Registrarse a evento |
-| GET | `/api/v1/my-registrations` | activo | Ver mis registros |
-| DELETE | `/api/v1/events/{id}/unregister` | activo | Cancelar registro |
+| Método | Ruta | Auth | Query params | Descripción |
+|---|---|---|---|---|
+| POST | `/api/v1/events/{id}/register` | activo | — | Registrarse a evento |
+| GET | `/api/v1/my-registrations` | activo | `page`, `size` | Ver mis registros paginados |
+| DELETE | `/api/v1/events/{id}/unregister` | activo | — | Cancelar registro |
 
 ### Admin (solo admin)
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/api/v1/admin/users` | Listar usuarios (paginado) |
-| GET | `/api/v1/admin/users/{id}` | Perfil de usuario |
-| PATCH | `/api/v1/admin/users/{id}/role` | Cambiar rol |
-| PATCH | `/api/v1/admin/users/{id}/active` | Activar / desactivar |
+| Método | Ruta | Query params | Descripción |
+|---|---|---|---|
+| GET | `/api/v1/admin/users` | `page`, `size` | Listar usuarios paginados |
+| GET | `/api/v1/admin/users/{id}` | — | Perfil de usuario |
+| PATCH | `/api/v1/admin/users/{id}/role` | — | Cambiar rol |
+| PATCH | `/api/v1/admin/users/{id}/active` | — | Activar / desactivar |
 
 ---
 
@@ -248,6 +263,7 @@ poetry run alembic revision --autogenerate -m "descripcion"
 2. `e3f2a1b5` — UniqueConstraint en registration(user_id, event_id)
 3. `f1a2b3c4` — columna `role` en user (server_default: attendee)
 4. `a2b3c4d5` — columna `creator_id` en event (nullable, FK → user)
+5. `b3c4d5e6` — eliminación de columna `is_superuser` (RBAC completo)
 
 ---
 
@@ -265,6 +281,51 @@ poetry run alembic revision --autogenerate -m "descripcion"
 | Testing | pytest 8 + httpx |
 | Contenedorización | Docker + Docker Compose |
 | Python | 3.12 |
+
+---
+
+## Roles del Sistema
+
+El sistema usa RBAC (Role-Based Access Control) puro. La autorización se basa **exclusivamente** en el campo `role` del usuario.
+
+### ADMIN
+- Acceso total a todos los endpoints
+- Puede crear, editar y eliminar cualquier evento (propio o ajeno)
+- Gestión completa de usuarios: ver perfiles, cambiar roles, activar/desactivar
+- Único rol que puede acceder a `/api/v1/admin/*`
+
+### ORGANIZER
+- Puede crear eventos y sesiones
+- Puede editar y eliminar únicamente los eventos que creó (`creator_id`)
+- No tiene acceso a la gestión de usuarios
+
+### ATTENDEE (rol por defecto)
+- Puede ver eventos y sesiones (endpoints públicos)
+- Puede registrarse y cancelar registro en eventos
+- No puede crear ni modificar eventos ni sesiones
+
+### Cadena de autorización
+
+```
+HTTPBearer
+    └── get_current_user         (JWT válido + usuario existe)
+            └── get_current_active_user   (is_active=True)
+                    ├── require_organizer_or_admin  (role in {organizer, admin})
+                    └── get_current_superuser       (role == admin)
+```
+
+### Asignar rol admin a un usuario
+
+Solo otro admin puede cambiar roles vía la API:
+```
+PATCH /api/v1/admin/users/{id}/role
+{ "role": "admin" }
+```
+
+O directamente en la base de datos (primer admin del sistema):
+```sql
+UPDATE "user" SET role = 'admin' WHERE email = 'tu@email.com';
+```
 
 ---
 
@@ -292,4 +353,4 @@ Con el servidor corriendo:
 
 ## Autor
 
-Yerlys Castellar — MVP backend profesional para Mis Eventos.
+Yerlys Castellar — MVP backend para Mis Eventos.

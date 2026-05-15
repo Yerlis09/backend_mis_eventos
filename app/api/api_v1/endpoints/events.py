@@ -1,21 +1,21 @@
+from math import ceil
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
-from app.core.deps import get_current_active_user
 from app.core.permissions import require_organizer_or_admin
-from app.db.models import Event, User
+from app.db.models import Event, User, UserRole
 from app.db.session import get_session
 from app.schemas.event import EventCreate, EventRead, EventUpdate
+from app.schemas.pagination import Page
 
 router = APIRouter()
 
 
 def _check_event_ownership(event: Event, current_user: User) -> None:
-    """Raises 403 if the user is not the event creator and not an admin/superuser."""
-    is_admin = current_user.is_superuser or current_user.role.value == "admin"
-    if is_admin:
+    """Raises 403 if the user is not the event creator and not an admin."""
+    if current_user.role == UserRole.admin:
         return
     if event.creator_id is not None and event.creator_id != current_user.id:
         raise HTTPException(
@@ -24,18 +24,24 @@ def _check_event_ownership(event: Event, current_user: User) -> None:
         )
 
 
-@router.get("", response_model=list[EventRead])
+@router.get("", response_model=Page[EventRead])
 def list_events(
     session: Session = Depends(get_session),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
-) -> list[EventRead]:
+) -> Page[EventRead]:
     """Lista eventos con paginación y búsqueda opcional."""
     query = select(Event)
+    count_query = select(func.count(Event.id))
     if search:
         query = query.where(Event.name.ilike(f"%{search}%"))
-    return session.exec(query.offset(skip).limit(limit)).all()
+        count_query = count_query.where(Event.name.ilike(f"%{search}%"))
+    total = session.exec(count_query).one()
+    offset = (page - 1) * size
+    items = session.exec(query.offset(offset).limit(size)).all()
+    pages = ceil(total / size) if total > 0 else 0
+    return Page(items=items, total=total, page=page, size=size, pages=pages)
 
 
 @router.get("/{event_id}", response_model=EventRead)

@@ -22,7 +22,6 @@ class UserBase(SQLModel):
     email: str = Field(index=True, unique=True)
     full_name: Optional[str] = None
     is_active: bool = True
-    is_superuser: bool = False
     role: UserRole = Field(default=UserRole.attendee)
 
 

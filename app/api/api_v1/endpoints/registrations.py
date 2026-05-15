@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select, func
+from math import ceil
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel import Session, func, select
 
 from app.core.deps import get_current_active_user
 from app.db.models import Event, Registration, User
 from app.db.session import get_session
+from app.schemas.pagination import Page
 from app.schemas.registration import RegistrationRead
 
 router = APIRouter()
@@ -49,16 +52,23 @@ def register_to_event(
     return registration
 
 
-@router.get("/my-registrations", response_model=list[RegistrationRead])
+@router.get("/my-registrations", response_model=Page[RegistrationRead])
 def list_my_registrations(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
-) -> list[RegistrationRead]:
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+) -> Page[RegistrationRead]:
     """Lista los eventos a los que el usuario está registrado."""
-    registrations = session.exec(
-        select(Registration).where(Registration.user_id == current_user.id)
+    total = session.exec(
+        select(func.count(Registration.id)).where(Registration.user_id == current_user.id)
+    ).one()
+    offset = (page - 1) * size
+    items = session.exec(
+        select(Registration).where(Registration.user_id == current_user.id).offset(offset).limit(size)
     ).all()
-    return registrations
+    pages = ceil(total / size) if total > 0 else 0
+    return Page(items=items, total=total, page=page, size=size, pages=pages)
 
 
 @router.delete("/events/{event_id}/unregister", status_code=status.HTTP_204_NO_CONTENT)

@@ -23,7 +23,6 @@ class UserRead(SQLModel):
     email: EmailStr
     full_name: Optional[str] = None
     is_active: bool
-    is_superuser: bool
     role: UserRole
 
 

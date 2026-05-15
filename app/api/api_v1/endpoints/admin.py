@@ -1,23 +1,30 @@
+from math import ceil
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from app.core.deps import get_current_superuser
 from app.db.models import User
 from app.db.session import get_session
+from app.schemas.pagination import Page
 from app.schemas.user import UserActiveUpdate, UserRead, UserRoleUpdate
 
 router = APIRouter()
 
 
-@router.get("/users", response_model=list[UserRead])
+@router.get("/users", response_model=Page[UserRead])
 def list_users(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_superuser),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
-) -> list[UserRead]:
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=200),
+) -> Page[UserRead]:
     """Lista todos los usuarios registrados. Requiere privilegios de superusuario."""
-    return session.exec(select(User).offset(skip).limit(limit)).all()
+    total = session.exec(select(func.count(User.id))).one()
+    offset = (page - 1) * size
+    items = session.exec(select(User).offset(offset).limit(size)).all()
+    pages = ceil(total / size) if total > 0 else 0
+    return Page(items=items, total=total, page=page, size=size, pages=pages)
 
 
 @router.get("/users/{user_id}", response_model=UserRead)

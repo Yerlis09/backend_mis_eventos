@@ -91,3 +91,44 @@ def test_inactive_user_blocked(client: TestClient, inactive_user: User):
     )
     assert response.status_code == 400
     assert "Inactive user" in response.json()["detail"]
+
+
+def test_invalid_jwt_token(client: TestClient):
+    """Token malformado recibe 401 (JWTError path en deps.py)."""
+    response = client.get(
+        "/api/v1/my-registrations",
+        headers={"Authorization": "Bearer token.invalido.completamente"},
+    )
+    assert response.status_code == 401
+
+
+def test_jwt_missing_sub_field(client: TestClient):
+    """JWT válido pero sin campo 'sub' recibe 401 (email is None path en deps.py)."""
+    from jose import jwt as jose_jwt
+    from app.core.config import settings
+    token_without_sub = jose_jwt.encode(
+        {"user_id": 1},
+        settings.secret_key,
+        algorithm=settings.algorithm,
+    )
+    response = client.get(
+        "/api/v1/my-registrations",
+        headers={"Authorization": f"Bearer {token_without_sub}"},
+    )
+    assert response.status_code == 401
+
+
+def test_jwt_for_deleted_user(client: TestClient, session, test_user):
+    """JWT válido para usuario eliminado recibe 401 (user not found path en deps.py)."""
+    from jose import jwt as jose_jwt
+    from app.core.config import settings
+    token = jose_jwt.encode(
+        {"sub": test_user.email, "user_id": 99999},
+        settings.secret_key,
+        algorithm=settings.algorithm,
+    )
+    response = client.get(
+        "/api/v1/my-registrations",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 401
