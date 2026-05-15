@@ -1,19 +1,19 @@
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.db.models import User
+from app.db.models import User, UserRole
 from app.db.session import get_session
 
 _http_scheme = HTTPBearer()
 
 
-async def _oauth2_scheme(auth: HTTPAuthCredentials = Depends(_http_scheme)) -> str:
-    """Extrae el token del header Authorization."""
+async def _oauth2_scheme(auth: HTTPAuthorizationCredentials = Depends(_http_scheme)) -> str:
+    """Extrae el token Bearer del header Authorization."""
     return auth.credentials
 
 
@@ -21,7 +21,7 @@ async def get_current_user(
     token: str = Depends(_oauth2_scheme),
     session: Session = Depends(get_session),
 ) -> User:
-    """Extrae y valida el usuario actual desde el token JWT."""
+    """Decodifica y valida el JWT; retorna el usuario asociado desde la BD."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -45,7 +45,28 @@ async def get_current_user(
 async def get_current_active_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
-    """Valida que el usuario esté activo."""
+    """Verifica que el usuario autenticado esté activo."""
     if not current_user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+    return current_user
+
+
+async def get_current_superuser(
+    current_user: User = Depends(get_current_active_user),
+) -> User:
+    """Verifica que el usuario tenga privilegios de administrador.
+
+    Acepta dos mecanismos (backward-compatible):
+    - is_superuser=True  (campo heredado, sigue funcionando)
+    - role=UserRole.admin (nuevo sistema de roles)
+
+    Esto permite migrar gradualmente de is_superuser al sistema de roles
+    sin romper usuarios existentes ni los tests actuales.
+    """
+    is_admin = current_user.is_superuser or current_user.role == UserRole.admin
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
     return current_user

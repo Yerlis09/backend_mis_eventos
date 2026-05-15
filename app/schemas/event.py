@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
-from sqlmodel import SQLModel
+from sqlmodel import Field, SQLModel
+
+EventStatus = Literal["draft", "published", "cancelled"]
 
 
 class EventSessionCreate(SQLModel):
@@ -9,7 +11,7 @@ class EventSessionCreate(SQLModel):
     speaker: str
     start_datetime: datetime
     end_datetime: datetime
-    capacity: int
+    capacity: int = Field(ge=0)
 
 
 class EventSessionUpdate(SQLModel):
@@ -17,7 +19,7 @@ class EventSessionUpdate(SQLModel):
     speaker: Optional[str] = None
     start_datetime: Optional[datetime] = None
     end_datetime: Optional[datetime] = None
-    capacity: Optional[int] = None
+    capacity: Optional[int] = Field(None, ge=0)
 
 
 class EventSessionRead(SQLModel):
@@ -32,15 +34,15 @@ class EventSessionRead(SQLModel):
 class EventCreate(SQLModel):
     name: str
     description: Optional[str] = None
-    capacity: int
-    status: str = "draft"
+    capacity: int = Field(ge=0)
+    status: EventStatus = "draft"
 
 
 class EventUpdate(SQLModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    capacity: Optional[int] = None
-    status: Optional[str] = None
+    capacity: Optional[int] = Field(None, ge=0)
+    status: Optional[EventStatus] = None
 
 
 class EventRead(SQLModel):
@@ -49,4 +51,5 @@ class EventRead(SQLModel):
     description: Optional[str] = None
     capacity: int
     status: str
+    creator_id: Optional[int] = None
     sessions: list[EventSessionRead] = []

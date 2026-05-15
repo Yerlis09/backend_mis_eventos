@@ -4,7 +4,7 @@ from sqlmodel import Session, select, func
 from app.core.deps import get_current_active_user
 from app.db.models import Event, Registration, User
 from app.db.session import get_session
-from app.schemas.registration import RegistrationCreate, RegistrationRead
+from app.schemas.registration import RegistrationRead
 
 router = APIRouter()
 
@@ -28,7 +28,7 @@ def register_to_event(
     ).first()
     if existing:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail="User already registered to this event",
         )
 

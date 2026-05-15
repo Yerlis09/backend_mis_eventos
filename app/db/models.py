@@ -1,9 +1,21 @@
-from __future__ import annotations
+import enum
+from datetime import datetime, timezone
+from typing import Optional
 
-from datetime import datetime
-from typing import List, Optional
-
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
+
+
+class UserRole(str, enum.Enum):
+    """Roles disponibles en el sistema.
+
+    - attendee:  usuario estándar, puede registrarse a eventos
+    - organizer: puede crear y gestionar eventos y sesiones
+    - admin:     acceso completo, equivalente a superusuario
+    """
+    attendee = "attendee"
+    organizer = "organizer"
+    admin = "admin"
 
 
 class UserBase(SQLModel):
@@ -11,12 +23,14 @@ class UserBase(SQLModel):
     full_name: Optional[str] = None
     is_active: bool = True
     is_superuser: bool = False
+    role: UserRole = Field(default=UserRole.attendee)
 
 
 class User(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     hashed_password: str
-    registrations: List["Registration"] = Relationship(back_populates="user")
+    events: list["Event"] = Relationship(back_populates="creator")
+    registrations: list["Registration"] = Relationship(back_populates="user")
 
 
 class EventBase(SQLModel):
@@ -24,12 +38,14 @@ class EventBase(SQLModel):
     description: Optional[str] = None
     capacity: int = Field(default=0, ge=0)
     status: str = Field(default="draft", max_length=20)
+    creator_id: Optional[int] = Field(default=None, foreign_key="user.id")
 
 
 class Event(EventBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    sessions: List["EventSession"] = Relationship(back_populates="event")
-    registrations: List["Registration"] = Relationship(back_populates="event")
+    creator: Optional["User"] = Relationship(back_populates="events")
+    sessions: list["EventSession"] = Relationship(back_populates="event")
+    registrations: list["Registration"] = Relationship(back_populates="event")
 
 
 class EventSessionBase(SQLModel):
@@ -49,10 +65,14 @@ class EventSession(EventSessionBase, table=True):
 class RegistrationBase(SQLModel):
     user_id: int = Field(foreign_key="user.id")
     event_id: int = Field(foreign_key="event.id")
-    registered_at: datetime = Field(default_factory=datetime.utcnow)
+    registered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class Registration(RegistrationBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user: Optional[User] = Relationship(back_populates="registrations")
     event: Optional[Event] = Relationship(back_populates="registrations")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "event_id", name="uq_registration_user_event"),
+    )

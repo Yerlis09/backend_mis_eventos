@@ -1,9 +1,7 @@
-import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.db.models import User
-from app.core.security import get_password_hash
 
 
 def test_health_check(client: TestClient):
@@ -36,6 +34,15 @@ def test_register_duplicate_email(client: TestClient, test_user: User):
     assert "Email already registered" in response.json()["detail"]
 
 
+def test_register_short_password(client: TestClient):
+    """Verifica que se rechacen contraseñas menores a 8 caracteres."""
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"email": "new@example.com", "password": "short"},
+    )
+    assert response.status_code == 422
+
+
 def test_login_success(client: TestClient, test_user: User):
     """Verifica el login exitoso."""
     response = client.post(
@@ -66,3 +73,21 @@ def test_login_invalid_email(client: TestClient):
     )
     assert response.status_code == 401
     assert "Invalid credentials" in response.json()["detail"]
+
+
+def test_inactive_user_blocked(client: TestClient, inactive_user: User):
+    """Verifica que usuarios inactivos no pueden acceder a rutas protegidas."""
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "inactive@example.com", "password": "testpass123"},
+    )
+    assert login_response.status_code == 200
+    token = login_response.json()["access_token"]
+
+    response = client.post(
+        "/api/v1/events",
+        json={"name": "Test Event", "capacity": 10, "status": "draft"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+    assert "Inactive user" in response.json()["detail"]

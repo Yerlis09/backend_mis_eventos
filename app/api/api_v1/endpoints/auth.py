@@ -36,5 +36,5 @@ def login(user_login: UserLogin, session: Session = Depends(get_session)) -> Tok
     if not user or not verify_password(user_login.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    access_token = create_access_token({"sub": user.email, "user_id": user.id})
+    access_token = create_access_token({"sub": user.email, "user_id": user.id, "role": user.role})
     return Token(access_token=access_token, token_type="bearer")

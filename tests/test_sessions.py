@@ -1,5 +1,10 @@
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+# SQLite stores datetimes as naive; strip tzinfo so comparisons are consistent in tests.
+# In production (PostgreSQL), timezone-aware datetimes work natively.
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
@@ -16,9 +21,9 @@ def test_event(session: Session):
     return event
 
 
-def test_create_session(client: TestClient, test_event: Event, auth_token: str):
+def test_create_session(client: TestClient, test_event: Event, organizer_token: str):
     """Verifica crear una sesión en un evento."""
-    now = datetime.utcnow()
+    now = _utcnow()
     response = client.post(
         f"/api/v1/events/{test_event.id}/sessions",
         json={
@@ -28,7 +33,7 @@ def test_create_session(client: TestClient, test_event: Event, auth_token: str):
             "end_datetime": (now + timedelta(hours=1)).isoformat(),
             "capacity": 50,
         },
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {organizer_token}"},
     )
     assert response.status_code == 201
     data = response.json()
@@ -36,9 +41,9 @@ def test_create_session(client: TestClient, test_event: Event, auth_token: str):
     assert data["capacity"] == 50
 
 
-def test_create_session_invalid_times(client: TestClient, test_event: Event, auth_token: str):
+def test_create_session_invalid_times(client: TestClient, test_event: Event, organizer_token: str):
     """Verifica validación de horarios (start >= end)."""
-    now = datetime.utcnow()
+    now = _utcnow()
     response = client.post(
         f"/api/v1/events/{test_event.id}/sessions",
         json={
@@ -48,17 +53,16 @@ def test_create_session_invalid_times(client: TestClient, test_event: Event, aut
             "end_datetime": now.isoformat(),
             "capacity": 30,
         },
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {organizer_token}"},
     )
     assert response.status_code == 400
     assert "Start time must be before end time" in response.json()["detail"]
 
 
-def test_session_overlap_validation(client: TestClient, test_event: Event, session: Session, auth_token: str):
+def test_session_overlap_validation(client: TestClient, test_event: Event, session: Session, organizer_token: str):
     """Verifica que no se permiten sesiones solapadas."""
-    now = datetime.utcnow()
-    
-    # Crear primera sesión
+    now = _utcnow()
+
     session_1 = EventSession(
         event_id=test_event.id,
         title="Session 1",
@@ -69,8 +73,7 @@ def test_session_overlap_validation(client: TestClient, test_event: Event, sessi
     )
     session.add(session_1)
     session.commit()
-    
-    # Intentar crear sesión que se solapa
+
     response = client.post(
         f"/api/v1/events/{test_event.id}/sessions",
         json={
@@ -80,7 +83,7 @@ def test_session_overlap_validation(client: TestClient, test_event: Event, sessi
             "end_datetime": (now + timedelta(hours=1, minutes=30)).isoformat(),
             "capacity": 30,
         },
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {organizer_token}"},
     )
     assert response.status_code == 400
     assert "overlaps" in response.json()["detail"].lower()
@@ -88,28 +91,27 @@ def test_session_overlap_validation(client: TestClient, test_event: Event, sessi
 
 def test_list_sessions(client: TestClient, test_event: Event, session: Session):
     """Verifica listar sesiones de un evento."""
-    now = datetime.utcnow()
+    now = _utcnow()
     for i in range(3):
         s = EventSession(
             event_id=test_event.id,
             title=f"Session {i}",
             speaker=f"Speaker {i}",
-            start_datetime=now + timedelta(hours=i*2),
-            end_datetime=now + timedelta(hours=i*2+1),
+            start_datetime=now + timedelta(hours=i * 2),
+            end_datetime=now + timedelta(hours=i * 2 + 1),
             capacity=50,
         )
         session.add(s)
     session.commit()
-    
+
     response = client.get(f"/api/v1/events/{test_event.id}/sessions")
     assert response.status_code == 200
-    data = response.json()
-    assert len(data) == 3
+    assert len(response.json()) == 3
 
 
-def test_update_session(client: TestClient, test_event: Event, session: Session, auth_token: str):
+def test_update_session(client: TestClient, test_event: Event, session: Session, organizer_token: str):
     """Verifica actualizar una sesión."""
-    now = datetime.utcnow()
+    now = _utcnow()
     s = EventSession(
         event_id=test_event.id,
         title="Original Title",
@@ -121,11 +123,11 @@ def test_update_session(client: TestClient, test_event: Event, session: Session,
     session.add(s)
     session.commit()
     session.refresh(s)
-    
+
     response = client.put(
         f"/api/v1/events/{test_event.id}/sessions/{s.id}",
         json={"title": "Updated Title", "speaker": "Updated Speaker"},
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {organizer_token}"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -133,9 +135,9 @@ def test_update_session(client: TestClient, test_event: Event, session: Session,
     assert data["speaker"] == "Updated Speaker"
 
 
-def test_delete_session(client: TestClient, test_event: Event, session: Session, auth_token: str):
+def test_delete_session(client: TestClient, test_event: Event, session: Session, organizer_token: str):
     """Verifica eliminar una sesión."""
-    now = datetime.utcnow()
+    now = _utcnow()
     s = EventSession(
         event_id=test_event.id,
         title="To Delete",
@@ -148,10 +150,10 @@ def test_delete_session(client: TestClient, test_event: Event, session: Session,
     session.commit()
     session.refresh(s)
     session_id = s.id
-    
+
     response = client.delete(
         f"/api/v1/events/{test_event.id}/sessions/{session_id}",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        headers={"Authorization": f"Bearer {organizer_token}"},
     )
     assert response.status_code == 204
     assert session.get(EventSession, session_id) is None

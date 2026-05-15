@@ -4,6 +4,6 @@ router = APIRouter()
 
 
 @router.get("/health")
-def health_check() -> dict:
+def health_check() -> dict[str, str]:
     """Comprueba si el servicio está disponible."""
     return {"status": "ok", "service": "Mis Eventos Backend"}

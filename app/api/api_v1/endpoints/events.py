@@ -1,14 +1,27 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlmodel import Session, select, func
+from sqlmodel import Session, select
 
 from app.core.deps import get_current_active_user
+from app.core.permissions import require_organizer_or_admin
 from app.db.models import Event, User
 from app.db.session import get_session
 from app.schemas.event import EventCreate, EventRead, EventUpdate
 
 router = APIRouter()
+
+
+def _check_event_ownership(event: Event, current_user: User) -> None:
+    """Raises 403 if the user is not the event creator and not an admin/superuser."""
+    is_admin = current_user.is_superuser or current_user.role.value == "admin"
+    if is_admin:
+        return
+    if event.creator_id is not None and event.creator_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
 
 
 @router.get("", response_model=list[EventRead])
@@ -22,8 +35,7 @@ def list_events(
     query = select(Event)
     if search:
         query = query.where(Event.name.ilike(f"%{search}%"))
-    events = session.exec(query.offset(skip).limit(limit)).all()
-    return events
+    return session.exec(query.offset(skip).limit(limit)).all()
 
 
 @router.get("/{event_id}", response_model=EventRead)
@@ -38,16 +50,11 @@ def get_event(event_id: int, session: Session = Depends(get_session)) -> EventRe
 @router.post("", response_model=EventRead, status_code=status.HTTP_201_CREATED)
 def create_event(
     event_create: EventCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_organizer_or_admin),
     session: Session = Depends(get_session),
 ) -> EventRead:
-    """Crea un nuevo evento. Solo usuarios autenticados."""
-    if event_create.capacity < 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Capacity must be non-negative",
-        )
-    event = Event(**event_create.dict())
+    """Crea un nuevo evento. Requiere rol organizer o admin."""
+    event = Event(**event_create.model_dump(), creator_id=current_user.id)
     session.add(event)
     session.commit()
     session.refresh(event)
@@ -58,21 +65,17 @@ def create_event(
 def update_event(
     event_id: int,
     event_update: EventUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_organizer_or_admin),
     session: Session = Depends(get_session),
 ) -> EventRead:
-    """Actualiza un evento. Solo usuarios autenticados."""
+    """Actualiza un evento. Solo el creador o un admin puede modificarlo."""
     event = session.get(Event, event_id)
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
-    update_data = event_update.dict(exclude_unset=True)
-    if "capacity" in update_data and update_data["capacity"] < 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Capacity must be non-negative",
-        )
+    _check_event_ownership(event, current_user)
 
+    update_data = event_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(event, field, value)
 
@@ -85,13 +88,15 @@ def update_event(
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_event(
     event_id: int,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_organizer_or_admin),
     session: Session = Depends(get_session),
 ) -> None:
-    """Elimina un evento. Solo usuarios autenticados."""
+    """Elimina un evento. Solo el creador o un admin puede eliminarlo."""
     event = session.get(Event, event_id)
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    _check_event_ownership(event, current_user)
 
     session.delete(event)
     session.commit()

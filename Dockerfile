@@ -1,11 +1,14 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 
 COPY pyproject.toml poetry.lock* /app/
-RUN pip install --no-cache-dir poetry && poetry config virtualenvs.create false && poetry install --no-root --no-interaction --no-ansi
+RUN pip install --no-cache-dir poetry \
+    && poetry config virtualenvs.create false \
+    && poetry install --no-root --without dev --no-interaction --no-ansi
 
 COPY . /app
+RUN chmod +x /app/entrypoint.sh
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/app/entrypoint.sh"]

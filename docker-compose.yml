@@ -1,8 +1,7 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
+    container_name: miseventos_db
     restart: unless-stopped
     environment:
       POSTGRES_USER: miseventos
@@ -11,15 +10,22 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"  # host:container — 5433 avoids conflict with local PostgreSQL
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U miseventos -d miseventos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: .
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    container_name: miseventos_backend
     environment:
       DATABASE_URL: postgresql+psycopg://miseventos:miseventos@db:5432/miseventos
-      SECRET_KEY: change-me
+      SECRET_KEY: ${SECRET_KEY:-3021f6c83851bde98d45a60aad6c1d6f0592703dd4e766494720d53eca84582e}
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
     ports:
       - "8000:8000"
