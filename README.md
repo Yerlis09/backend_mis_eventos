@@ -71,7 +71,6 @@ backend_mis_eventos/
 ### Sistema de Roles RBAC
 - `UserRole` enum con tres niveles: `attendee`, `organizer`, `admin`
 - Capa de permisos reutilizable (`permissions.py`) con factory `require_roles(*roles)`
-- Backward-compatible: usuarios con `is_superuser=True` siempre pasan los checks de rol
 - Ownership de eventos: el organizer solo puede editar/borrar los eventos que creó
 
 | Acción | Attendee | Organizer (propio) | Organizer (ajeno) | Admin |
@@ -178,50 +177,620 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 ---
 
-## API Endpoints
+## Consumo de APIs
 
-### Health
-| Método | Ruta | Auth | Descripción |
+> **Base URL:** `http://localhost:8000/api/v1`
+>
+> **Documentación interactiva:** `http://localhost:8000/docs` (Swagger UI)
+>
+> **Flujo obligatorio:** Registrar usuario → Login → usar el `access_token` en el header `Authorization: Bearer <token>`
+
+---
+
+### 1. Health Check
+
+Verifica que el servidor está activo. No requiere autenticación.
+
+```
+GET /health
+```
+
+**Respuesta 200:**
+```json
+{ "status": "ok" }
+```
+
+---
+
+### 2. Autenticación
+
+#### 2.1 Registrar usuario
+
+Todos los usuarios nuevos reciben el rol `attendee` por defecto.
+
+```
+POST /auth/register
+```
+
+**Body:**
+```json
+{
+  "email": "yerlis@email.com",
+  "password": "mipassword123",
+  "full_name": "Yerlis Castellar"
+}
+```
+
+**Respuesta 201:**
+```json
+{
+  "id": 1,
+  "email": "yerlis@email.com",
+  "full_name": "Yerlis Castellar",
+  "is_active": true,
+  "role": "attendee"
+}
+```
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 400 | Email ya registrado |
+| 422 | Contraseña menor a 8 caracteres o email inválido |
+
+---
+
+#### 2.2 Login
+
+```
+POST /auth/login
+```
+
+**Body:**
+```json
+{
+  "email": "yerlis@email.com",
+  "password": "mipassword123"
+}
+```
+
+**Respuesta 200:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 401 | Credenciales incorrectas |
+| 400 | Usuario inactivo |
+
+> Guarda el `access_token`. Úsalo en todas las rutas protegidas:
+> ```
+> Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+> ```
+
+---
+
+### 3. Eventos
+
+#### 3.1 Listar eventos
+
+Endpoint público. Soporta búsqueda y paginación.
+
+```
+GET /events?page=1&size=10
+GET /events?search=python&page=1&size=10
+```
+
+| Query param | Tipo | Default | Descripción |
 |---|---|---|---|
-| GET | `/api/v1/health` | — | Estado del servicio |
+| `page` | int ≥ 1 | 1 | Número de página |
+| `size` | int 1-100 | 10 | Items por página |
+| `search` | string | — | Filtra por nombre (case-insensitive) |
 
-### Autenticación
-| Método | Ruta | Auth | Descripción |
+> **Importante:** la base de datos de Docker está vacía al inicio. Debes crear eventos primero antes de buscarlos.
+
+**Respuesta 200:**
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "name": "Python Conference 2026",
+      "description": "La mejor conferencia de Python",
+      "capacity": 200,
+      "status": "published",
+      "creator_id": 2,
+      "sessions": []
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 10,
+  "pages": 1
+}
+```
+
+---
+
+#### 3.2 Ver evento por ID
+
+Endpoint público.
+
+```
+GET /events/{id}
+```
+
+**Respuesta 200:**
+```json
+{
+  "id": 1,
+  "name": "Python Conference 2026",
+  "description": "La mejor conferencia de Python",
+  "capacity": 200,
+  "status": "published",
+  "creator_id": 2,
+  "sessions": [
+    {
+      "id": 1,
+      "title": "Apertura",
+      "speaker": "John Doe",
+      "start_datetime": "2026-06-01T09:00:00",
+      "end_datetime": "2026-06-01T10:00:00",
+      "capacity": 50
+    }
+  ]
+}
+```
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 404 | Evento no encontrado |
+
+---
+
+#### 3.3 Crear evento
+
+Requiere rol `organizer` o `admin`.
+
+```
+POST /events
+Authorization: Bearer <token>
+```
+
+**Body:**
+```json
+{
+  "name": "Python Conference 2026",
+  "description": "La mejor conferencia de Python",
+  "capacity": 200,
+  "status": "draft"
+}
+```
+
+| Campo | Tipo | Requerido | Valores válidos |
 |---|---|---|---|
-| POST | `/api/v1/auth/register` | — | Registrar usuario (rol: attendee) |
-| POST | `/api/v1/auth/login` | — | Obtener token JWT |
+| `name` | string | ✅ | cualquier texto |
+| `description` | string | ❌ | cualquier texto |
+| `capacity` | int ≥ 0 | ✅ | número de cupos |
+| `status` | string | ❌ | `draft`, `published`, `cancelled` |
 
-### Eventos
-| Método | Ruta | Auth | Query params | Descripción |
-|---|---|---|---|---|
-| GET | `/api/v1/events` | — | `page`, `size`, `search` | Listar eventos paginados |
-| GET | `/api/v1/events/{id}` | — | — | Obtener evento con sus sesiones |
-| POST | `/api/v1/events` | organizer / admin | — | Crear evento |
-| PUT | `/api/v1/events/{id}` | organizer-dueño / admin | — | Actualizar evento |
-| DELETE | `/api/v1/events/{id}` | organizer-dueño / admin | — | Eliminar evento |
+**Respuesta 201:** objeto evento creado con `creator_id` asignado
 
-### Sesiones
-| Método | Ruta | Auth | Query params | Descripción |
-|---|---|---|---|---|
-| GET | `/api/v1/events/{id}/sessions` | — | `page`, `size` | Listar sesiones paginadas |
-| POST | `/api/v1/events/{id}/sessions` | organizer / admin | — | Crear sesión |
-| PUT | `/api/v1/events/{id}/sessions/{sid}` | organizer / admin | — | Actualizar sesión |
-| DELETE | `/api/v1/events/{id}/sessions/{sid}` | organizer / admin | — | Eliminar sesión |
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 403 | Usuario con rol `attendee` |
+| 422 | Capacidad negativa o status inválido |
 
-### Registros
-| Método | Ruta | Auth | Query params | Descripción |
-|---|---|---|---|---|
-| POST | `/api/v1/events/{id}/register` | activo | — | Registrarse a evento |
-| GET | `/api/v1/my-registrations` | activo | `page`, `size` | Ver mis registros paginados |
-| DELETE | `/api/v1/events/{id}/unregister` | activo | — | Cancelar registro |
+---
 
-### Admin (solo admin)
-| Método | Ruta | Query params | Descripción |
+#### 3.4 Actualizar evento
+
+Solo el creador del evento o un `admin`. Todos los campos son opcionales.
+
+```
+PUT /events/{id}
+Authorization: Bearer <token>
+```
+
+**Body (solo los campos a modificar):**
+```json
+{
+  "name": "Python Conference 2026 — Edición especial",
+  "status": "published",
+  "capacity": 300
+}
+```
+
+**Respuesta 200:** objeto evento actualizado
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 403 | Organizer intentando editar el evento de otro organizer |
+| 404 | Evento no encontrado |
+
+---
+
+#### 3.5 Eliminar evento
+
+Solo el creador del evento o un `admin`.
+
+```
+DELETE /events/{id}
+Authorization: Bearer <token>
+```
+
+**Respuesta 204:** sin body
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 403 | No es el dueño ni admin |
+| 404 | Evento no encontrado |
+
+---
+
+### 4. Sesiones
+
+#### 4.1 Listar sesiones de un evento
+
+Endpoint público.
+
+```
+GET /events/{id}/sessions?page=1&size=50
+```
+
+| Query param | Tipo | Default | Descripción |
 |---|---|---|---|
-| GET | `/api/v1/admin/users` | `page`, `size` | Listar usuarios paginados |
-| GET | `/api/v1/admin/users/{id}` | — | Perfil de usuario |
-| PATCH | `/api/v1/admin/users/{id}/role` | — | Cambiar rol |
-| PATCH | `/api/v1/admin/users/{id}/active` | — | Activar / desactivar |
+| `page` | int ≥ 1 | 1 | Número de página |
+| `size` | int 1-100 | 50 | Items por página |
+
+**Respuesta 200:**
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "title": "Apertura",
+      "speaker": "John Doe",
+      "start_datetime": "2026-06-01T09:00:00",
+      "end_datetime": "2026-06-01T10:00:00",
+      "capacity": 50
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 50,
+  "pages": 1
+}
+```
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 404 | Evento no encontrado |
+
+---
+
+#### 4.2 Crear sesión
+
+Requiere rol `organizer` o `admin`.
+
+```
+POST /events/{id}/sessions
+Authorization: Bearer <token>
+```
+
+**Body:**
+```json
+{
+  "title": "Keynote de apertura",
+  "speaker": "John Doe",
+  "start_datetime": "2026-06-01T09:00:00",
+  "end_datetime": "2026-06-01T10:00:00",
+  "capacity": 50
+}
+```
+
+| Campo | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `title` | string | ✅ | Título de la sesión |
+| `speaker` | string | ✅ | Nombre del ponente |
+| `start_datetime` | datetime | ✅ | Inicio (ISO 8601) |
+| `end_datetime` | datetime | ✅ | Fin (ISO 8601) — debe ser mayor a start |
+| `capacity` | int ≥ 0 | ✅ | Cupos de la sesión |
+
+**Respuesta 201:** objeto sesión creado
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 400 | `start_datetime` ≥ `end_datetime` |
+| 400 | Horario se solapa con otra sesión del mismo evento |
+| 403 | Sin permisos |
+| 404 | Evento no encontrado |
+
+---
+
+#### 4.3 Actualizar sesión
+
+Requiere rol `organizer` o `admin`. Todos los campos son opcionales.
+
+```
+PUT /events/{id}/sessions/{session_id}
+Authorization: Bearer <token>
+```
+
+**Body (solo los campos a modificar):**
+```json
+{
+  "title": "Keynote principal",
+  "start_datetime": "2026-06-01T09:30:00",
+  "end_datetime": "2026-06-01T10:30:00"
+}
+```
+
+**Respuesta 200:** objeto sesión actualizado
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 400 | Horarios inválidos o solapamiento |
+| 404 | Evento o sesión no encontrado |
+
+---
+
+#### 4.4 Eliminar sesión
+
+Requiere rol `organizer` o `admin`.
+
+```
+DELETE /events/{id}/sessions/{session_id}
+Authorization: Bearer <token>
+```
+
+**Respuesta 204:** sin body
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 403 | Sin permisos |
+| 404 | Evento o sesión no encontrado |
+
+---
+
+### 5. Registros de Asistentes
+
+#### 5.1 Registrarse a un evento
+
+Requiere usuario activo (cualquier rol). No lleva body.
+
+```
+POST /events/{id}/register
+Authorization: Bearer <token>
+```
+
+**Respuesta 201:**
+```json
+{
+  "id": 1,
+  "user_id": 3,
+  "event_id": 1,
+  "registered_at": "2026-05-15T14:30:00"
+}
+```
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 400 | Evento sin cupos disponibles |
+| 404 | Evento no encontrado |
+| 409 | Ya estás registrado a este evento |
+
+---
+
+#### 5.2 Ver mis registros
+
+Devuelve los eventos a los que el usuario autenticado está inscrito.
+
+```
+GET /my-registrations?page=1&size=20
+Authorization: Bearer <token>
+```
+
+| Query param | Tipo | Default | Descripción |
+|---|---|---|---|
+| `page` | int ≥ 1 | 1 | Número de página |
+| `size` | int 1-100 | 20 | Items por página |
+
+**Respuesta 200:**
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "user_id": 3,
+      "event_id": 1,
+      "registered_at": "2026-05-15T14:30:00"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 20,
+  "pages": 1
+}
+```
+
+---
+
+#### 5.3 Cancelar registro
+
+Requiere usuario activo. No lleva body.
+
+```
+DELETE /events/{id}/unregister
+Authorization: Bearer <token>
+```
+
+**Respuesta 204:** sin body
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 404 | Evento no encontrado o no estás registrado |
+
+---
+
+### 6. Administración
+
+Todos los endpoints de esta sección requieren rol `admin`.
+
+#### 6.1 Asignar el primer admin (solo una vez)
+
+El primer usuario admin debe asignarse directamente en la base de datos, ya que no existe aún ningún admin para hacer el cambio vía API.
+
+```bash
+# Con Docker
+docker compose exec db psql -U miseventos -d miseventos \
+  -c "UPDATE \"user\" SET role='admin' WHERE email='tu@email.com';"
+```
+
+Luego vuelve a hacer login para obtener un token con el nuevo rol.
+
+---
+
+#### 6.2 Listar usuarios
+
+```
+GET /admin/users?page=1&size=50
+Authorization: Bearer <token_admin>
+```
+
+| Query param | Tipo | Default | Descripción |
+|---|---|---|---|
+| `page` | int ≥ 1 | 1 | Número de página |
+| `size` | int 1-200 | 50 | Items por página |
+
+**Respuesta 200:**
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "email": "yerlis@email.com",
+      "full_name": "Yerlis Castellar",
+      "is_active": true,
+      "role": "attendee"
+    }
+  ],
+  "total": 5,
+  "page": 1,
+  "size": 50,
+  "pages": 1
+}
+```
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 403 | No es admin |
+
+---
+
+#### 6.3 Ver perfil de un usuario
+
+```
+GET /admin/users/{id}
+Authorization: Bearer <token_admin>
+```
+
+**Respuesta 200:**
+```json
+{
+  "id": 3,
+  "email": "organizer@email.com",
+  "full_name": "Organizer User",
+  "is_active": true,
+  "role": "organizer"
+}
+```
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 404 | Usuario no encontrado |
+
+---
+
+#### 6.4 Cambiar rol de un usuario
+
+```
+PATCH /admin/users/{id}/role
+Authorization: Bearer <token_admin>
+```
+
+**Body:**
+```json
+{ "role": "organizer" }
+```
+
+| Valor | Descripción |
+|---|---|
+| `attendee` | Usuario estándar (solo lectura y registro) |
+| `organizer` | Puede crear y gestionar sus propios eventos |
+| `admin` | Acceso total al sistema |
+
+**Respuesta 200:** objeto usuario con rol actualizado
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 404 | Usuario no encontrado |
+| 422 | Rol inválido |
+
+---
+
+#### 6.5 Activar o desactivar usuario
+
+```
+PATCH /admin/users/{id}/active
+Authorization: Bearer <token_admin>
+```
+
+**Body:**
+```json
+{ "is_active": false }
+```
+
+**Respuesta 200:** objeto usuario actualizado
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 404 | Usuario no encontrado |
+
+---
+
+### Códigos de respuesta HTTP
+
+| Código | Significado |
+|---|---|
+| 200 | Consulta o actualización exitosa |
+| 201 | Recurso creado exitosamente |
+| 204 | Eliminación exitosa (sin body) |
+| 400 | Regla de negocio violada (capacidad, horarios, usuario inactivo) |
+| 401 | Token inválido o expirado |
+| 403 | Token válido pero sin permisos para esa acción |
+| 404 | Recurso no encontrado |
+| 409 | Conflicto (registro duplicado) |
+| 422 | Campo inválido según el schema Pydantic |
 
 ---
 
@@ -263,7 +832,7 @@ poetry run alembic revision --autogenerate -m "descripcion"
 2. `e3f2a1b5` — UniqueConstraint en registration(user_id, event_id)
 3. `f1a2b3c4` — columna `role` en user (server_default: attendee)
 4. `a2b3c4d5` — columna `creator_id` en event (nullable, FK → user)
-5. `b3c4d5e6` — eliminación de columna `is_superuser` (RBAC completo)
+5. `b3c4d5e6` — eliminación de columna legada (RBAC completo)
 
 ---
 
@@ -312,19 +881,6 @@ HTTPBearer
             └── get_current_active_user   (is_active=True)
                     ├── require_organizer_or_admin  (role in {organizer, admin})
                     └── get_current_superuser       (role == admin)
-```
-
-### Asignar rol admin a un usuario
-
-Solo otro admin puede cambiar roles vía la API:
-```
-PATCH /api/v1/admin/users/{id}/role
-{ "role": "admin" }
-```
-
-O directamente en la base de datos (primer admin del sistema):
-```sql
-UPDATE "user" SET role = 'admin' WHERE email = 'tu@email.com';
 ```
 
 ---
