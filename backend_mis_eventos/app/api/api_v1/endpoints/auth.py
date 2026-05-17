@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
+from app.core.deps import get_current_active_user
 from app.core.jwt import create_access_token
 from app.core.security import get_password_hash, verify_password
 from app.db.models import User
@@ -9,6 +10,12 @@ from app.schemas.token import Token
 from app.schemas.user import UserCreate, UserLogin, UserRead
 
 router = APIRouter()
+
+
+@router.get("/me", response_model=UserRead)
+def get_me(current_user: User = Depends(get_current_active_user)) -> UserRead:
+    """Retorna el perfil del usuario autenticado."""
+    return current_user
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)

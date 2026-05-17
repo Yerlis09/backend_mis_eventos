@@ -52,7 +52,6 @@ backend_mis_eventos/
 │       └── a2b3c4d5e6f7_add_creator_id_to_event.py
 ├── entrypoint.sh                      # Ejecuta migraciones antes de arrancar uvicorn
 ├── Dockerfile
-├── docker-compose.yml
 ├── pyproject.toml
 ├── alembic.ini
 └── .env.example
@@ -132,17 +131,20 @@ backend_mis_eventos/
 
 ### Opción 1: Docker (Recomendado)
 
+El `docker-compose.yml` raíz orquesta los tres servicios (db, backend, frontend). Ejecutar desde la **raíz del repositorio** (`pt_mis_eventos/`):
+
 ```bash
-# Construir imagen
-docker compose build
-
-# Levantar servicios (PostgreSQL + Backend)
-# Las migraciones se aplican automáticamente al arrancar
-docker compose up
-
-# Backend: http://localhost:8000
-# Swagger: http://localhost:8000/docs
+docker compose up --build
 ```
+
+Las migraciones se aplican automáticamente al arrancar el backend (`entrypoint.sh`).
+
+| Servicio | URL |
+|---|---|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| Swagger UI | http://localhost:8000/docs |
+| PostgreSQL | localhost:5433 |
 
 > **Nota de puertos:** PostgreSQL está mapeado en `5433:5432` en el host para evitar conflictos
 > con instalaciones locales de PostgreSQL. Dentro de Docker el backend usa `db:5432`.
@@ -240,7 +242,35 @@ POST /auth/register
 
 ---
 
-#### 2.2 Login
+#### 2.2 Perfil del usuario autenticado
+
+Devuelve los datos del usuario dueño del token. Usado por el frontend inmediatamente después del login para hidratar el store de autenticación.
+
+```
+GET /auth/me
+Authorization: Bearer <token>
+```
+
+**Respuesta 200:**
+```json
+{
+  "id": 1,
+  "email": "yerlis@email.com",
+  "full_name": "Yerlis Castellar",
+  "is_active": true,
+  "role": "attendee"
+}
+```
+
+**Errores:**
+| Código | Motivo |
+|---|---|
+| 401 | Token inválido o expirado |
+| 400 | Usuario inactivo |
+
+---
+
+#### 2.3 Login
 
 ```
 POST /auth/login

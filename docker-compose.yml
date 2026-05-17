@@ -10,7 +10,7 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"  # host:container — 5433 avoids conflict with local PostgreSQL
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U miseventos -d miseventos"]
       interval: 10s
@@ -18,7 +18,7 @@ services:
       retries: 5
 
   backend:
-    build: .
+    build: ./backend_mis_eventos
     depends_on:
       db:
         condition: service_healthy
@@ -30,7 +30,19 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
+      - ./backend_mis_eventos:/app
+
+  frontend:
+    build:
+      context: ./frontend_mis_eventos
+      args:
+        VITE_API_URL: http://localhost:8000/api/v1
+    container_name: miseventos_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
 
 volumes:
   db_data:

@@ -1,0 +1,112 @@
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--space-xl) var(--space-lg);
+  min-height: calc(100vh - 64px);
+}
+
+.toolbar {
+  display: flex;
+  margin-bottom: var(--space-xl);
+}
+
+.searchWrapper {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+}
+
+
+.searchIcon {
+  position: absolute;
+  left: var(--space-md);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-outline);
+  font-size: 20px;
+  pointer-events: none;
+  transition: color 0.2s;
+}
+
+.searchWrapper:focus-within .searchIcon {
+  color: var(--color-primary);
+}
+
+.searchInput {
+  width: 100%;
+  background-color: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface);
+  border-radius: var(--radius-lg);
+  padding: 12px var(--space-md) 12px 48px;
+  font-size: var(--font-size-body);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.searchInput::placeholder {
+  color: var(--color-outline);
+}
+
+.searchInput:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(192, 193, 255, 0.15);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-lg);
+}
+
+@media (min-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: 80px 0;
+  color: var(--color-on-surface-variant);
+}
+
+.empty span.material-symbols-outlined {
+  font-size: 64px;
+  opacity: 0.4;
+}
+
+.emptyText {
+  font-size: var(--font-size-h3);
+  color: var(--color-on-surface-variant);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+  color: var(--color-on-surface-variant);
+}
+
+.error {
+  padding: var(--space-md);
+  background-color: rgba(255, 180, 171, 0.1);
+  border: 1px solid var(--color-error-container);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  font-size: var(--font-size-small);
+  text-align: center;
+}

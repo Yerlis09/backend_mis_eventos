@@ -1,0 +1,307 @@
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--space-xl) var(--space-lg);
+  min-height: calc(100vh - 64px);
+}
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+@media (min-width: 768px) {
+  .toolbar {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.title {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-h1);
+  color: var(--color-on-surface);
+}
+
+.totalBadge {
+  padding: var(--space-xs) var(--space-sm);
+  background-color: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  letter-spacing: var(--letter-spacing-label);
+}
+
+.searchWrapper {
+  position: relative;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-on-surface-variant);
+  font-size: 20px;
+  pointer-events: none;
+}
+
+.searchInput {
+  background-color: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md) var(--space-sm) 40px;
+  font-size: var(--font-size-body);
+  outline: none;
+  width: 256px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.searchInput:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(192, 193, 255, 0.15);
+}
+
+.tableWrapper {
+  background-color: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 0 24px rgba(99, 102, 241, 0.05);
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.thead tr {
+  background-color: var(--color-surface-container-high);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.th {
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  letter-spacing: var(--letter-spacing-label);
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.thCenter {
+  text-align: center;
+}
+
+.thRight {
+  text-align: right;
+}
+
+.tbody tr {
+  border-bottom: 1px solid var(--color-outline-variant);
+  transition: background-color 0.15s;
+}
+
+.tbody tr:last-child {
+  border-bottom: none;
+}
+
+.tbody tr:hover {
+  background-color: var(--color-surface-container-highest);
+}
+
+.td {
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--font-size-body);
+  color: var(--color-on-surface);
+}
+
+.tdCenter {
+  text-align: center;
+}
+
+.tdRight {
+  text-align: right;
+}
+
+/* Role badge */
+.roleBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  border: 1px solid;
+}
+
+.roleAttendee {
+  color: var(--color-on-surface-variant);
+  border-color: var(--color-outline);
+}
+
+.roleOrganizer {
+  color: var(--color-tertiary);
+  border-color: var(--color-tertiary-container);
+}
+
+.roleAdmin {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* Active dot */
+.dotWrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+}
+
+.dotActive {
+  background-color: var(--color-primary);
+  box-shadow: 0 0 8px rgba(192, 193, 255, 0.6);
+}
+
+.dotInactive {
+  background-color: var(--color-outline-variant);
+}
+
+/* Role select */
+.roleSelect {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface);
+  border-radius: var(--radius-md);
+  padding: 2px var(--space-sm);
+  font-size: var(--font-size-small);
+  font-family: var(--font-family);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.roleSelect:focus {
+  border-color: var(--color-primary);
+}
+
+/* Toggle */
+.toggleLabel {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.toggleInput {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggleTrack {
+  width: 44px;
+  height: 24px;
+  background-color: var(--color-surface-variant);
+  border-radius: var(--radius-full);
+  position: relative;
+  transition: background-color 0.2s;
+}
+
+.toggleTrack::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background-color: #fff;
+  transition: transform 0.2s;
+}
+
+.toggleInput:checked + .toggleTrack {
+  background-color: var(--color-primary);
+}
+
+.toggleInput:checked + .toggleTrack::after {
+  transform: translateX(20px);
+}
+
+/* Pagination row */
+.tableFooter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  background-color: var(--color-surface-container-low);
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+@media (min-width: 768px) {
+  .tableFooter {
+    flex-direction: row;
+  }
+}
+
+.footerInfo {
+  font-size: var(--font-size-small);
+  color: var(--color-on-surface-variant);
+}
+
+.footerInfo strong {
+  color: var(--color-on-surface);
+  font-weight: var(--font-weight-label);
+}
+
+/* States */
+.loading, .error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+  color: var(--color-on-surface-variant);
+}
+
+.error { color: var(--color-error); }
+
+.forbidden {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: 80px 0;
+  color: var(--color-on-surface-variant);
+  text-align: center;
+}
+
+.forbidden span.material-symbols-outlined {
+  font-size: 64px;
+  opacity: 0.4;
+}
