@@ -36,7 +36,7 @@ Las migraciones de base de datos se aplican automáticamente al iniciar.
 ## Estructura del repositorio
 
 ```
-pt_mis_eventos/
+mis_eventos_TD/
 ├── docker-compose.yml          # Orquesta db + backend + frontend
 ├── backend_mis_eventos/        # API REST (FastAPI)
 │   └── README.md               # Configuración, endpoints y tests del backend
